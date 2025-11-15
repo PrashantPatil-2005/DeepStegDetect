@@ -10,7 +10,7 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 from srm_frontend import SRMFrontend
 from pathlib import Path
-from train_research import ResNetWithSRM  # uses same class
+from DeepStegDetect.train_research_fast import ResNetWithSRM  # uses same class
 
 def load_dataloader(data_dir, img_size, batch_size=8):
     tf = transforms.Compose([
