@@ -9,6 +9,8 @@ Usage:
 import argparse
 from pathlib import Path
 from utils import resize_and_save, create_splits
+from PIL import Image   # IMPORTANT FIX
+import time
 
 
 def parse_args():
@@ -36,26 +38,37 @@ def preprocess_and_save_pairs(cover_dir, stego_dir, tmp_dir, size=224):
 
     cover_files = sorted([p for p in cover_dir.iterdir() if p.is_file()])
 
-    for c in cover_files:
+    total = len(cover_files)
+    print(f"🔍 Found {total} cover images.")
+    print("⏳ Starting preprocessing...\n")
+
+    for idx, c in enumerate(cover_files, 1):
         stem = c.stem
+
         # match cover → corresponding stego image
         candidates = list(stego_dir.glob(stem + '*'))
         if not candidates:
-            continue  # no stego version found
+            continue
         s = candidates[0]
 
         dst_cover = tmp_cover / (stem + '.png')
         dst_stego = tmp_stego / (s.stem + '.png')
 
-        # resize & save
         resize_and_save(c, dst_cover, size)
         resize_and_save(s, dst_stego, size)
 
-    print("Preprocessing complete.")
+        # ---- Progress Bar ----
+        if idx % 200 == 0:
+            print(f"✔ Processed {idx}/{total} images...")
+
+    print("\n🎉 Preprocessing complete.")
 
 
 if __name__ == '__main__':
     args = parse_args()
+
+    print("\n📁 Cover directory:", args.cover)
+    print("📁 Stego directory:", args.stego)
 
     tmp_dir = 'tmp_processed'
 
@@ -69,4 +82,4 @@ if __name__ == '__main__':
         out_dir=args.out
     )
 
-    print("✅ Dataset prepared successfully at:", args.out)
+    print("\n✅ Dataset prepared successfully at:", args.out)

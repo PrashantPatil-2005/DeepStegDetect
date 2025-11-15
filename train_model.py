@@ -1,72 +1,100 @@
-import argparse
 import os
-from pathlib import Path
 import torch
 import torch.nn as nn
-from torchvision import models, transforms, datasets
 from torch.utils.data import DataLoader
-from sklearn.metrics import accuracy_score
-import numpy as np
+from torchvision import datasets, transforms, models
 
+# -------------------------------
+# High-Pass Filter Layer (NO LAMBDA)
+# -------------------------------
+import torch.nn.functional as F
 
-def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--data_dir', required=True)
-    parser.add_argument('--epochs', type=int, default=15)
-    parser.add_argument('--batch_size', type=int, default=32)
-    parser.add_argument('--lr', type=float, default=1e-4)
-    parser.add_argument('--out_dir', default='checkpoints')
-    return parser.parse_args()
+class HPFTransform(nn.Module):
+    def __init__(self):
+        super().__init__()
+        hpf_kernel = torch.tensor([
+            [-1, 2, -1],
+            [2, -4, 2],
+            [-1, 2, -1]
+        ], dtype=torch.float32)
 
+        hpf_kernel = hpf_kernel.unsqueeze(0).unsqueeze(0)
+        self.weight = nn.Parameter(hpf_kernel, requires_grad=False)
+
+    def forward(self, img):
+        # img: [C, H, W]
+        img = img.unsqueeze(0)      # to [1,C,H,W]
+        img = F.conv2d(img, self.weight.repeat(3, 1, 1, 1), padding=1, groups=3)
+        return img.squeeze(0)
+
+HPF = HPFTransform()
+
+# -------------------------------
+# DATALOADER FIXED FOR WINDOWS
+# -------------------------------
 
 def get_dataloaders(data_dir, batch_size, size=224):
-    data_transforms = {
-        'train': transforms.Compose([
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-        ]),
-        'val': transforms.Compose([
-            transforms.ToTensor(),
-        ]),
-        'test': transforms.Compose([
-            transforms.ToTensor(),
-        ])
-    }
+    
+    train_tf = transforms.Compose([
+        transforms.Resize((size, size)),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.ConvertImageDtype(torch.float32),
+        HPF
+    ])
+
+    eval_tf = transforms.Compose([
+        transforms.Resize((size, size)),
+        transforms.ToTensor(),
+        transforms.ConvertImageDtype(torch.float32),
+        HPF
+    ])
 
     image_datasets = {
-        x: datasets.ImageFolder(os.path.join(data_dir, x), data_transforms[x])
-        for x in ['train', 'val', 'test']
+        'train': datasets.ImageFolder(os.path.join(data_dir, 'train'), transform=train_tf),
+        'val': datasets.ImageFolder(os.path.join(data_dir, 'val'), transform=eval_tf),
+        'test': datasets.ImageFolder(os.path.join(data_dir, 'test'), transform=eval_tf)
     }
 
     dataloaders = {
-        x: DataLoader(
-            image_datasets[x],
-            batch_size=batch_size,
-            shuffle=(x == 'train'),
-            num_workers=4,
-            pin_memory=True
-        )
-        for x in ['train', 'val', 'test']
+        x: DataLoader(image_datasets[x], batch_size=batch_size,
+                      shuffle=(x == "train"), num_workers=0)
+        for x in ["train", "val", "test"]
     }
 
     return dataloaders, image_datasets
 
 
-def train(args):
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+# -------------------------------
+# TRAINING LOOP
+# -------------------------------
+
+def train():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--data_dir", required=True)
+    parser.add_argument("--batch_size", type=int, default=16)
+    parser.add_argument("--lr", type=float, default=1e-4)
+    parser.add_argument("--epochs", type=int, default=10)
+    parser.add_argument("--out_dir", default="checkpoints")
+    args = parser.parse_args()
+
+    os.makedirs(args.out_dir, exist_ok=True)
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print("Using:", device)
+
     dataloaders, datasets_obj = get_dataloaders(args.data_dir, args.batch_size)
 
-    print(f"Using device: {device}")
-
-    # Load pre-trained ResNet50
+    # Load pretrained ResNet50
     model = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V2)
 
-    # Freeze early layers - train only layer4 + fc
+    # Freeze all layers except layer4 + fc
     for name, param in model.named_parameters():
-        if 'layer4' not in name and 'fc' not in name:
+        if "layer4" not in name and "fc" not in name:
             param.requires_grad = False
 
-    # Replace classifier head
+    # Replace FC
     model.fc = nn.Sequential(
         nn.Linear(model.fc.in_features, 256),
         nn.ReLU(),
@@ -75,84 +103,80 @@ def train(args):
         nn.Sigmoid()
     )
 
-    model = model.to(device)
+    model.to(device)
 
-    # Loss function + optimizer
     criterion = nn.BCELoss()
     optimizer = torch.optim.Adam(
         filter(lambda p: p.requires_grad, model.parameters()),
         lr=args.lr
     )
 
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer,
-        factor=0.1,
-        patience=3,
-        verbose=True
-    )
+    best_acc = 0
 
-    best_val_loss = float('inf')
-    os.makedirs(args.out_dir, exist_ok=True)
+    print()
 
-    # Training loop
+    # -----------------------------------
+    # TRAINING
+    # -----------------------------------
     for epoch in range(1, args.epochs + 1):
-        print(f"\n──── Epoch {epoch}/{args.epochs} ────")
+        print(f"📘 EPOCH {epoch}/{args.epochs}")
 
         model.train()
-        running_loss = 0.0
+        running_loss = 0
+        running_corrects = 0
 
-        for xb, yb in dataloaders['train']:
-            xb = xb.to(device)
-            yb = yb.float().unsqueeze(1).to(device)
+        for imgs, labels in dataloaders["train"]:
+            imgs = imgs.to(device)
+            labels = labels.float().to(device).unsqueeze(1)
 
             optimizer.zero_grad()
-            outputs = model(xb)
-            loss = criterion(outputs, yb)
+            outputs = model(imgs)
+
+            loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
 
-            running_loss += loss.item() * xb.size(0)
+            preds = (outputs > 0.5).float()
+            running_loss += loss.item() * imgs.size(0)
+            running_corrects += torch.sum(preds == labels)
 
-        epoch_loss = running_loss / len(datasets_obj['train'])
-        print(f"Train Loss: {epoch_loss:.4f}")
+        epoch_loss = running_loss / len(datasets_obj["train"])
+        epoch_acc = running_corrects.double() / len(datasets_obj["train"])
 
-        # Validation
+        print(f"   Train Loss: {epoch_loss:.4f} | Train Acc: {epoch_acc:.4f}")
+
+        # -----------------------------------
+        # VALIDATION
+        # -----------------------------------
         model.eval()
-        val_loss = 0.0
-        preds = []
-        labels = []
+        correct = 0
+        total = 0
 
         with torch.no_grad():
-            for xb, yb in dataloaders['val']:
-                xb = xb.to(device)
-                yb = yb.float().unsqueeze(1).to(device)
+            for imgs, labels in dataloaders["val"]:
+                imgs = imgs.to(device)
+                labels = labels.float().to(device).unsqueeze(1)
 
-                outputs = model(xb)
-                loss = criterion(outputs, yb)
+                outputs = model(imgs)
+                preds = (outputs > 0.5).float()
 
-                val_loss += loss.item() * xb.size(0)
+                correct += torch.sum(preds == labels)
+                total += labels.size(0)
 
-                predictions = (outputs.cpu().numpy() > 0.5).astype(int)
-                preds.extend(predictions.flatten().tolist())
-                labels.extend(yb.cpu().numpy().flatten().tolist())
+        val_acc = correct.double() / total
+        print(f"   Validation Acc: {val_acc:.4f}")
 
-        val_loss /= len(datasets_obj['val'])
-        val_acc = accuracy_score(labels, preds)
+        # save best model
+        if val_acc > best_acc:
+            best_acc = val_acc
+            torch.save(model.state_dict(), f"{args.out_dir}/best_model.pth")
+            print("   💾 Saved new best model")
 
-        print(f"Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f}")
+        print()
 
-        scheduler.step(val_loss)
-
-        # Save best weights
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            save_path = os.path.join(args.out_dir, 'resnet50_best.pth')
-            torch.save(model.state_dict(), save_path)
-            print(f"✓ Saved Best Model → {save_path}")
-
-    print("\n🔥 Training Complete!")
+    print("🎉 TRAINING COMPLETE!")
+    print("Best validation accuracy:", best_acc)
 
 
-if __name__ == '__main__':
-    args = parse_args()
-    train(args)
+if __name__ == "__main__":
+    train()
