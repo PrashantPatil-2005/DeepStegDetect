@@ -1,16 +1,19 @@
 # evaluate_research.py
-# Evaluate saved best_research.pth on test set and print metrics + confusion matrix.
+# Evaluate saved model checkpoint on test set and print metrics + confusion matrix.
 # Usage:
-# python evaluate_research.py --data_dir processed --ckpt checkpoints_research/best_research.pth --img_size 256
+# python scripts/evaluate_research.py --data_dir processed --ckpt checkpoints/resnet50_best.pth --img_size 224
 
 import argparse
 import torch
 import numpy as np
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
-from srm_frontend import SRMFrontend
 from pathlib import Path
-from DeepStegDetect.train_research_fast import ResNetWithSRM  # uses same class
+import sys
+
+# Add parent directory to path
+sys.path.append(str(Path(__file__).parent.parent))
+from models.modified_resnet import create_model
 
 def load_dataloader(data_dir, img_size, batch_size=8):
     tf = transforms.Compose([
@@ -32,8 +35,10 @@ def main():
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     loader, ds = load_dataloader(args.data_dir, args.img_size, args.batch_size)
 
-    model = ResNetWithSRM(device=device, pretrained=True, freeze_until='layer3')
+    # Load model from checkpoint
     ckpt = torch.load(args.ckpt, map_location=device)
+    model_name = ckpt.get('model_name', 'resnet50')
+    model = create_model(model_name=model_name, pretrained=False, freeze_until='none', device=device)
     model.load_state_dict(ckpt['model_state'])
     model.to(device)
     model.eval()

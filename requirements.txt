@@ -7,3 +7,6 @@ torch
 torchvision
 tqdm
 pandas
+watchdog
+seaborn
+scipy
