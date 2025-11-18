@@ -1,214 +1,83 @@
-# ----------------------------
-# Python general
-# ----------------------------
+# Python
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
 *.so
 *.dll
-*.log
-*.pot
-*.pyc
+*.pkl
 
 # Virtual environments
-env/
 venv/
+env/
 .venv/
 ENV/
 env.bak/
 venv.bak/
 
-# IDE settings
+# IDE
 .vscode/
 .idea/
 *.sublime-project
 *.sublime-workspace
 
-# OS generated files
+# OS
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# ----------------------------
-# Jupyter Notebooks
-# ----------------------------
+# Jupyter
 .ipynb_checkpoints/
-jupyter-cache/
-.lab/
+.jupyter/
 
-# ----------------------------
-# Cache & Build
-# ----------------------------
-__pycache__/
-cache/
-.cache/
+# Build artifacts
 build/
 dist/
 *.egg-info/
 .eggs/
 pip-wheel-metadata/
 
-# ----------------------------
-# ML / AI / Deep Learning
-# ----------------------------
-
-# TensorFlow
-*.ckpt
-*.ckpt.data-00000-of-00001
-*.ckpt.index
-events.out.tfevents.*
-
-# PyTorch
-*.pt
-*.pth
-*.bin
-*.ptl
-*.pkl
-*.model
-*.state_dict
-
-# HuggingFace Transformers
-/.cache/huggingface/
-huggingface/
-transformers_cache/
-
-# YOLO / CV datasets
-runs/
-yolov5/runs/
-*.cache
-*.labels
-*.jpg.cache
-*.png.cache
-
-# Datasets
-data/
-datasets/
-*.zip
-*.tar.gz
-*.h5
-*.hdf5
-*.npz
-*.npy
-*.csv  # if large, optional
-
-# Pretrained models
-models/
-saved_models/
+# PyTorch model checkpoints
 checkpoints/
-weights/
+*.pth
+*.pt
+*.bin
 
-# ----------------------------
-# Experiment tracking
-# ----------------------------
+# Datasets (too large for Git)
+dataset/
+processed/
+tmp_processed/
 
-# TensorBoard
-tensorboard/
-tb_logs/
+# Outputs and results
+outputs/
+results/
+# Keep example outputs but ignore generated ones
+!outputs/.gitkeep
+
+# Logs
+*.log
 logs/
-lightning_logs/
+honeypot_log.json
 
-# MLFlow
-mlruns/
-
-# Weights & Biases
-wandb/
-*wandb/
-
-# Neptune
-neptune/
-
-# ----------------------------
-# Docker
-# ----------------------------
-docker_temp/
-*.pid
-
-# ----------------------------
 # Environment variables
-# ----------------------------
 .env
 .env.*
 *.env
 
-# ----------------------------
-# Misc
-# ----------------------------
-*.sqlite
-*.db
-*.bak
-tmp/
-temp/
-# ─────────────────────────────────────────────
-# Python cache & temp files
-# ─────────────────────────────────────────────
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.pkl
-*.swp
-
-# Byte-compiled / optimized / DLL files
-*.dll
-*.so
-*.dylib
-
-# Virtual environment
-venv/
-env/
-.venv/
-
-# Jupyter Notebook checkpoints
-.ipynb_checkpoints/
-
-# VS Code settings
-.vscode/
-
-# PyCharm settings
-.idea/
-
-# Mac/Windows junk files
-.DS_Store
-Thumbs.db
-
-# ─────────────────────────────────────────────
-# Logs
-# ─────────────────────────────────────────────
-*.log
-logs/
-training.log
-
-# ─────────────────────────────────────────────
-# Model artifacts
-# ─────────────────────────────────────────────
-checkpoints/
-*.pth
-*.pt
-*.onnx
-*.h5
-
-# ─────────────────────────────────────────────
-# Dataset (too large for Git)
-# ─────────────────────────────────────────────
-dataset/
-processed/
-tmp_processed/
-stego_tools/
-results/
-
-# If you want to keep scripts but ignore binaries:
-stego_tools/S-UNIWARD/
+# Stego tools executables
 stego_tools/**/*.exe
 stego_tools/**/*.bin
 stego_tools/**/*.out
+stego_tools/**/*.so
 
-# ─────────────────────────────────────────────
-# Python build artifacts
-# ─────────────────────────────────────────────
-build/
-dist/
-*.egg-info/
+# Temporary files
+tmp/
+temp/
+*.swp
+*.bak
+*.cache
 
-# Packaging
-*.tar.gz
+# Compressed files
 *.zip
+*.tar.gz
+*.rar
